@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard PRO — Produtividade Corte & Religação (PROLAGOS)</title>
+
+  <!-- ✅ CDNs CORRETOS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      /* Paleta PRO (vibrante) */
+      --bg:#0b0f19; --bg2:#0f1524; --panel:#0f1730;
+      --text:#eaf2ff; --muted:#9fb2d9; --border:rgba(255,255,255,.09);
+      --accent1:#00f5a0; /* verde neon */
+      --accent2:#00d2ff; /* azul elétrico */
+      --accent3:#6c63ff; /* roxo vibrante */
+      --accent4:#f9d423; /* amarelo energia */
+      --good:#00e5b0; --warn:#ffb020; --bad:#ff6b81;
+
+      --shadow: 0 14px 45px rgba(0,0,0,.45);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:var(--sans); color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% 5%, #101a33 0%, var(--bg) 60%, #070b14 100%),
+        radial-gradient(800px 600px at 85% 15%, rgba(108,99,255,.08), transparent 60%);
+    }
+
+    header{padding:26px 18px 12px;max-width:1280px;margin:0 auto;}
+    h1{margin:0 0 6px;font-size:22px;letter-spacing:.3px}
+    .sub{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+
+    .container{max-width:1280px;margin:0 auto;padding:16px 18px 34px;display:flex;flex-direction:column;gap:14px;}
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;
+      backdrop-filter: blur(4px);
+    }
+
+    /* ===== Layout filtros ===== */
+    .row{display:grid;grid-template-columns:1.2fr repeat(6,1fr);gap:12px;}
+    @media (max-width: 1200px){.row{grid-template-columns:1fr 1fr}}
+    @media (max-width: 560px){.row{grid-template-columns:1fr}}
+    .field label{display:block;color:var(--muted);font-size:12px;margin:0 0 6px;}
+    input[type="file"], input[type="date"], input[type="number"], select{
+      width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(18,26,49,.8), rgba(12,18,35,.8));
+      color:var(--text);outline:none; transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    input[type="file"]{padding:8px}
+    input:focus, select:focus{border-color:rgba(0,210,255,.6); box-shadow:0 0 0 3px rgba(0,210,255,.15);}
+    button{
+      padding:11px 14px;border:1px solid var(--border);border-radius:12px;
+      background:linear-gradient(90deg, rgba(0,245,160,.18), rgba(0,210,255,.18));
+      color:var(--text);cursor:pointer;transition:transform .06s ease, box-shadow .2s ease, background .2s ease;
+    }
+    button:hover{transform: translateY(-1px); box-shadow: 0 8px 28px rgba(0,210,255,.12);}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+    .hint{margin-top:8px;font-size:12px;color:var(--muted);}
+
+    /* ===== Cards (equalizados + animação) ===== */
+    .cards{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;}
+    @media (max-width: 1280px){.cards{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width: 700px){.cards{grid-template-columns:1fr}}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--border); border-radius:var(--radius); padding:12px;
+      min-height:120px; display:flex; flex-direction:column; justify-content:space-between;
+    }
+    .kpi-title{font-size:12px;color:var(--muted);margin:0 0 6px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .badge{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;background:rgba(255,255,255,.03)}
+    .kpi-value{font-size:28px;margin:0;font-weight:800; letter-spacing:.3px}
+    .kpi-foot{margin:8px 0 0;font-size:12px;color:var(--muted);}
+    .progress{height:8px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:6px}
+    .progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent1),var(--accent2));transition:width .5s ease;}
+
+    /* ===== Grids & Títulos ===== */
+    .grid3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px;}
+    @media (max-width: 1080px){.grid3{grid-template-columns:1fr}}
+    h2{margin:0 0 10px;font-size:14px;color:var(--muted);letter-spacing:.2px}
+
+    /* ===== Tabelas (zebra + hover) ===== */
+    .twoTables{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media (max-width: 1080px){.twoTables{grid-template-columns:1fr}}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px;background:rgba(15,20,38,.45);}
+    table{width:100%;border-collapse:collapse;min-width:980px;font-size:12px;}
+    thead th{position:sticky;top:0;background:rgba(14,19,35,.95);color:var(--muted);font-weight:700;text-align:left;z-index:1;}
+    th, td{padding:10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top;}
+    tbody tr:nth-child(odd){background:rgba(255,255,255,.02)}
+    tbody tr:hover{background:rgba(0,210,255,.06)}
+    td b{color:#eaf2ff}
+
+    .status-pill{display:inline-flex;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.04);font-size:11px;gap:6px;align-items:center;white-space:nowrap;}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block;}
+    .dot.good{background:var(--good)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+
+    .footer{color:var(--muted);font-size:12px;line-height:1.4;}
+    .mono{font-family:var(--mono)}
+
+    /* ===== Micro-detalhes ===== */
+    .glow{box-shadow: 0 0 0 1px rgba(0,210,255,.12), 0 10px 30px rgba(0,210,255,.08) inset;}
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>Dashboard — Produtividade (RELIGAÇÃO & CORTE) — PROLAGOS</h1>
+  <p class="sub">
+    Compatível com colunas: Recurso, Cód. Protocolo Origem, Número da Conta, Matrícula, Setor, Número da Quadra, Código/Descrição, Data, Status da Atividade.
+  </p>
+</header>
+
+<div class="container">
+
+  <section class="panel glow">
+    <div class="row">
+      <div class="field">
+        <label>Arquivo Excel (.xlsx / .xls)</label>
+        <input id="fileInput" type="file" accept=".xlsx,.xls" />
+        <div class="hint">Usa a 1ª aba do Excel. Cabeçalhos na primeira linha.</div>
+      </div>
+
+      <div class="field">
+        <label>Data inicial (coluna "Data")</label>
+        <input id="dateStart" type="date" />
+      </div>
+
+      <div class="field">
+        <label>Data final (coluna "Data")</label>
+        <input id="dateEnd" type="date" />
+      </div>
+
+      <div class="field">
+        <label>Recurso</label>
+        <select id="recursoSelect"><option value="">(Todos)</option></select>
+      </div>
+
+      <!-- Metas por tipo (somente FINALIZADOS) -->
+      <div class="field">
+        <label>Meta CORTE (somente FINALIZADOS)</label>
+        <input id="metaCorteInput" type="number" min="0" placeholder="Ex.: 250" />
+        <div class="hint">Progresso considera apenas FINALIZADOS de CORTE.</div>
+      </div>
+
+      <div class="field">
+        <label>Meta RELIGAÇÃO (somente FINALIZADOS)</label>
+        <input id="metaReligInput" type="number" min="0" placeholder="Ex.: 150" />
+        <div class="hint">Progresso considera apenas FINALIZADOS de RELIGAÇÃO.</div>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:12px">
+      <button id="btnApply">Aplicar filtros</button>
+      <button id="btnClear">Limpar filtros</button>
+      <button id="btnExportCsv">Exportar filtrado (CSV)</button>
+      <div class="hint">
+        Regras: <span class="mono">Código/Descrição</span> contém “RELIG” ou “CORT” •
+        <span class="mono">Status</span> agrupa FINALIZ/ENCERR/CONCLU/EXECUT/FEITO (final) e OCORR/INVIABIL/FECHADO SEM/SEM VISÃO/HD NÃO ENCONTRADO (ocorrência).
+      </div>
+      <div class="hint mono" id="debugLib"></div>
+    </div>
+  </section>
+
+  <!-- KPIs -->
+  <section class="cards">
+    <div class="card">
+      <div class="kpi-title">RELIGAÇÃO — Finalizados <span class="badge" id="badgeR1">0</span></div>
+      <p class="kpi-value" id="kpiReligFin" data-animate="0">0</p>
+      <p class="kpi-foot">Finalizado (sem ocorrência).</p>
+    </div>
+    <div class="card">
+      <div class="kpi-title">RELIGAÇÃO — Final. c/ Ocorrência <span class="badge" id="badgeR2">0</span></div>
+      <p class="kpi-value" id="kpiReligOcc" data-animate="0">0</p>
+      <p class="kpi-foot">Finalizado + ocorrência.</p>
+    </div>
+    <div class="card">
+      <div class="kpi-title">RELIGAÇÃO — % Ocorrência <span class="badge" id="badgeR3">0%</span></div>
+      <p class="kpi-value" id="kpiReligPct">0%</p>
+      <p class="kpi-foot">Ocorr / (Final+Ocorr).</p>
+    </div>
+    <div class="card">
+      <div class="kpi-title">CORTE — Finalizados <span class="badge" id="badgeC1">0</span></div>
+      <p class="kpi-value" id="kpiCorteFin" data-animate="0">0</p>
+      <p class="kpi-foot">Finalizado (sem ocorrência).</p>
+    </div>
+    <div class="card">
+      <div class="kpi-title">CORTE — Final. c/ Ocorrência <span class="badge" id="badgeC2">0</span></div>
+      <p class="kpi-value" id="kpiCorteOcc" data-animate="0">0</p>
+      <p class="kpi-foot">Finalizado + ocorrência.</p>
+    </div>
+    <div class="card">
+      <div class="kpi-title">CORTE — % Ocorrência <span class="badge" id="badgeC3">0%</span></div>
+      <p class="kpi-value" id="kpiCortePct">0%</p>
+      <p class="kpi-foot">Ocorr / (Final+Ocorr).</p>
+    </div>
+
+    <!-- Metas separadas -->
+    <div class="card">
+      <div class="kpi-title">META — CORTE (Finalizados) <span class="badge" id="badgeMetaCortePct">0%</span></div>
+      <p class="kpi-value"><span id="kpiMetaCorteHit" data-animate="0">0</span>/<span id="kpiMetaCorteTotal">0</span></p>
+      <div class="progress"><div id="progressBarCorte"></div></div>
+      <p class="kpi-foot"><span id="kpiMetaCorteMissingQty">Faltam 0</span> • <span id="kpiMetaCorteMissingPct">0%</span> p/ meta</p>
+    </div>
+
+    <div class="card">
+      <div class="kpi-title">META — RELIGAÇÃO (Finalizados) <span class="badge" id="badgeMetaReligPct">0%</span></div>
+      <p class="kpi-value"><span id="kpiMetaReligHit" data-animate="0">0</span>/<span id="kpiMetaReligTotal">0</span></p>
+      <div class="progress"><div id="progressBarRelig"></div></div>
+      <p class="kpi-foot"><span id="kpiMetaReligMissingQty">Faltam 0</span> • <span id="kpiMetaReligMissingPct">0%</span> p/ meta</p>
+    </div>
+  </section>
+
+  <section class="grid3">
+    <div class="panel">
+      <h2>Barras empilhadas (por tipo)</h2>
+      <canvas id="chartBar" height="130"></canvas>
+      <div class="hint" id="summaryText"></div>
+    </div>
+    <div class="panel">
+      <h2>Donut (total)</h2>
+      <canvas id="chartDonut" height="170"></canvas>
+      <div class="hint">Proporção total: Finalizado x Finalizado c/ Ocorrência.</div>
+    </div>
+    <div class="panel">
+      <h2>Linha (evolução diária — apenas FINALIZADOS)</h2>
+      <canvas id="chartLine" height="170"></canvas>
+      <div class="hint">Total diário de FINALIZADOS por tipo.</div>
+    </div>
+  </section>
+
+  <section class="twoTables">
+    <div class="panel">
+      <h2>Validação de colunas</h2>
+      <div class="footer" id="colCheck">Importe um arquivo para validar colunas.</div>
+      <div class="hint">
+        Esperado: Recurso, Cód. Protocolo Origem, Número da Conta, Matrícula, Setor, Número da Quadra, Código/Descrição, Data, Status da Atividade.
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Ranking por Recurso (filtrado)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Recurso</th>
+              <th>Relig. Final.</th>
+              <th>Relig. Ocorr.</th>
+              <th>Corte Final.</th>
+              <th>Corte Ocorr.</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyAgg"></tbody>
+        </table>
+      </div>
+      <div class="hint">Ordenado por Total (desc). Total = Finalizados + Finalizados c/ Ocorrência.</div>
+    </div>
+  </section>
+
+  <!-- Produtividade diária por equipe (somente FINALIZADOS) -->
+  <section class="panel">
+    <h2>Produtividade diária por equipe (somente FINALIZADOS)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead id="theadDaily"></thead>
+        <tbody id="tbodyDaily"></tbody>
+      </table>
+    </div>
+    <div class="hint" id="dailyHint">Exibindo todos os dias do período filtrado.</div>
+    <div class="actions" style="margin-top:10px">
+      <button id="btnExportDailyCsv">Exportar produtividade diária (CSV)</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Prévia da base (filtrada)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Recurso</th>
+            <th>Cód. Protocolo Origem</th>
+            <th>Número da Conta</th>
+            <th>Matrícula</th>
+            <th>Setor</th>
+            <th>Número da Quadra</th>
+            <th>Código/Descrição</th>
+            <th>Data</th>
+            <th>Status da Atividade</th>
+            <th>Tipo</th>
+            <th>Status (Grupo)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="hint">Mostra no máximo 300 linhas na prévia.</div>
+  </section>
+
+</div>
+
+<script>
+  // ===== Debug libs
+  const debugLib = document.getElementById("debugLib");
+  const $ = (id) => document.getElementById(id);
+  function updateDebug(){
+    debugLib.textContent =
+      `XLSX: ${typeof XLSX !== "undefined" ? "OK" : "NÃO CARREGOU"} | ` +
+      `Chart: ${typeof Chart !== "undefined" ? "OK" : "NÃO CARREGOU"}`;
+  }
+  updateDebug();
+
+  // ===== Util
+  function normText(v){ return (v ?? "").toString().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(); }
+  function excelSerialToDate(serial){
+    const utc_days = Math.floor(serial - 25569);
+    const utc_value = utc_days * 86400;
+    const date_info = new Date(utc_value * 1000);
+    const fractional_day = serial - Math.floor(serial) + 0.0000001;
+    let total_seconds = Math.floor(86400 * fractional_day);
+    const seconds = total_seconds % 60;
+    total_seconds -= seconds;
+    const hours = Math.floor(total_seconds / 3600);
+    const minutes = Math.floor(total_seconds / 60) % 60;
+    return new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate(), hours, minutes, seconds);
+  }
+  function toDateAny(v){
+    if(v == null || v === "") return null;
+    if(Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v)) return v;
+    if(typeof v === "number" && isFinite(v)) return excelSerialToDate(v);
+    const s = v.toString().trim();
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if(m){
+      const dd = parseInt(m[1],10);
+      const mm = parseInt(m[2],10) - 1;
+      let yy = parseInt(m[3],10);
+      if(yy < 100) yy += 2000;
+      const d = new Date(yy, mm, dd);
+      return isNaN(d) ? null : d;
+    }
+    const d2 = new Date(s);
+    return isNaN(d2) ? null : d2;
+  }
+  function fmtDate(d){
+    if(!d || isNaN(d)) return "";
+    const dd = String(d.getDate()).padStart(2,"0");
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const yy = d.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  function yyyyMmDd(d){
+    const dd = String(d.getDate()).padStart(2,"0");
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const yy = d.getFullYear();
+    return `${yy}-${mm}-${dd}`;
+  }
+  function classifyTipo(codDesc){
+    const t = normText(codDesc);
+    if(t.includes("RELIG")) return "RELIGAÇÃO";
+    if(t.includes("CORT")) return "CORTE";
+    return "OUTROS";
+  }
+  function classifyStatusGroup(status){
+    const s = normText(status);
+    const isFinal = (s.includes("FINALIZ") || s.includes("ENCERR") || s.includes("CONCLU") || s.includes("EXECUT") || s === "FEITO");
+    const hasOcc  = (s.includes("OCORR") || s.includes("INVIABIL") || s.includes("FECHADO SEM") || s.includes("SEM VISAO") || s.includes("SEM VISÃO") || s.includes("HD NAO ENCONTRADO") || s.includes("HD NÃO ENCONTRADO"));
+    if(isFinal && hasOcc) return "FINALIZADO C/ OCORRÊNCIA";
+    if(isFinal) return "FINALIZADO";
+    return "OUTROS";
+  }
+  function escapeHtml(v){
+    return (v ?? "").toString()
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  const expectedCols = {
+    recurso: ["RECURSO"],
+    protocoloOrigem: ["CÓD. PROTOCOLO ORIGEM","COD. PROTOCOLO ORIGEM"],
+    conta: ["NÚMERO DA CONTA","NUMERO DA CONTA","CONTA"],
+    matricula: ["MATRÍCULA","MATRICULA"],
+    setor: ["SETOR"],
+    quadra: ["NÚMERO DA QUADRA","NUMERO DA QUADRA","QUADRA"],
+    codDesc: ["CÓDIGO/DESCRIÇÃO","CODIGO/DESCRICAO","CÓDIGO/DESCRICAO","CODIGO/DESCRIÇÃO","CODIGO DESCRICAO","CÓDIGO DESCRICAO"],
+    data: ["DATA"],
+    status: ["STATUS DA ATIVIDADE","STATUS ATIVIDADE","STATUS"]
+  };
+  function findColIndex(headersNorm, variants){
+    for(const v of variants){
+      const idx = headersNorm.indexOf(normText(v));
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  }
+  function validateColumns(headers){
+    const hn = headers.map(h => normText(h));
+    const map = {};
+    for(const k in expectedCols) map[k] = findColIndex(hn, expectedCols[k]);
+    return map;
+  }
+  function renderColCheck(map, headers){
+    const req = [
+      ["Recurso","recurso"],
+      ["Cód. Protocolo Origem","protocoloOrigem"],
+      ["Número da Conta","conta"],
+      ["Matrícula","matricula"],
+      ["Setor","setor"],
+      ["Número da Quadra","quadra"],
+      ["Código/Descrição","codDesc"],
+      ["Data","data"],
+      ["Status da Atividade","status"]
+    ];
+    $("colCheck").innerHTML = req.map(([label,key])=>{
+      const ok = map[key] !== -1;
+      const found = ok ? `OK — "<b>${escapeHtml(headers[map[key]])}</b>"` : "<b style='color:#ff6b81'>NÃO ENCONTRADO</b>";
+      const color = ok ? "color:#00e5b0" : "color:#ff6b81";
+      return `<div style="${color};margin:0 0 6px"><b>${label}:</b> ${found}</div>`;
+    }).join("");
+  }
+
+  let rawRows = [], filteredRows = [];
+  let chartBar=null, chartDonut=null, chartLine=null;
+  let lastDailyDates = [];
+
+  // ====== Contador animado (números sobem) ======
+  function animateCount(el, value){
+    const curr = parseInt(el.getAttribute("data-animate") || "0", 10) || 0;
+    const target = value || 0;
+    el.setAttribute("data-animate", target);
+    const duration = 600; // ms
+    const start = performance.now();
+    function step(t){
+      const p = Math.min(1, (t - start)/duration);
+      const val = Math.round(curr + (target - curr)*p);
+      el.textContent = val + (el.id.endsWith("Pct") ? "%" : "");
+      if(p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ====== Leitura do Excel ======
+  $("fileInput").addEventListener("change", async (e)=>{
+    try{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      if(typeof XLSX === "undefined"){
+        alert("XLSX não carregou. Sua rede pode estar bloqueando o CDN. Use o MODO OFFLINE no final do arquivo.");
+        return;
+      }
+
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type:"array", cellDates:true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:"" });
+      if(!aoa || aoa.length < 2){ alert("Planilha vazia ou sem dados."); return; }
+
+      const headers = aoa[0].map(h => (h ?? "").toString().trim());
+      const colMap = validateColumns(headers);
+      renderColCheck(colMap, headers);
+
+      rawRows = [];
+      for(let i=1;i<aoa.length;i++){
+        const r = aoa[i];
+        if(!r || r.every(x => (x ?? "").toString().trim()=="")) continue;
+
+        const obj = {
+          Recurso: colMap.recurso>=0 ? r[colMap.recurso] : "",
+          "Cód. Protocolo Origem": colMap.protocoloOrigem>=0 ? r[colMap.protocoloOrigem] : "",
+          "Número da Conta": colMap.conta>=0 ? r[colMap.conta] : "",
+          Matrícula: colMap.matricula>=0 ? r[colMap.matricula] : "",
+          Setor: colMap.setor>=0 ? r[colMap.setor] : "",
+          "Número da Quadra": colMap.quadra>=0 ? r[colMap.quadra] : "",
+          "Código/Descrição": colMap.codDesc>=0 ? r[colMap.codDesc] : "",
+          Data: colMap.data>=0 ? r[colMap.data] : "",
+          "Status da Atividade": colMap.status>=0 ? r[colMap.status] : ""
+        };
+
+        obj._dataDate = toDateAny(obj.Data);
+        obj._tipo = classifyTipo(obj["Código/Descrição"]);
+        obj._statusGroup = classifyStatusGroup(obj["Status da Atividade"]);
+        rawRows.push(obj);
+      }
+
+      // Filtro Recurso
+      const recursos = Array.from(new Set(rawRows.map(x => (x.Recurso ?? "").toString().trim()).filter(Boolean)))
+        .sort((a,b)=>a.localeCompare(b,"pt-BR"));
+      $("recursoSelect").innerHTML = `<option value="">(Todos)</option>` + recursos.map(r =>
+        `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+
+      applyFilters();
+    }catch(err){
+      console.error(err);
+      alert("Erro ao ler o Excel. Abra o console (F12) para detalhes.");
+    }
+  });
+
+  $("btnApply").addEventListener("click", applyFilters);
+  $("btnClear").addEventListener("click", ()=>{
+    $("dateStart").value=""; $("dateEnd").value=""; $("recursoSelect").value="";
+    $("metaCorteInput").value=""; $("metaReligInput").value="";
+    applyFilters();
+  });
+  $("metaCorteInput").addEventListener("input", applyFilters);
+  $("metaReligInput").addEventListener("input", applyFilters);
+
+  // ====== Filtros e KPIs ======
+  function applyFilters(){
+    const ds = $("dateStart").value ? new Date($("dateStart").value+"T00:00:00") : null;
+    const de = $("dateEnd").value ? new Date($("dateEnd").value+"T23:59:59") : null;
+    const rec = ($("recursoSelect").value || "").trim();
+
+    filteredRows = rawRows.filter(r=>{
+      if(rec && (r.Recurso ?? "").toString().trim() !== rec) return false;
+      if(ds || de){
+        const d = r._dataDate;
+        if(!d || isNaN(d)) return false;
+        if(ds && d < ds) return false;
+        if(de && d > de) return false;
+      }
+      return true;
+    });
+
+    // Contagens por tipo/status
+    const religFin = filteredRows.filter(r=>r._tipo==="RELIGAÇÃO" && r._statusGroup==="FINALIZADO").length;
+    const religOcc = filteredRows.filter(r=>r._tipo==="RELIGAÇÃO" && r._statusGroup==="FINALIZADO C/ OCORRÊNCIA").length;
+    const corteFin = filteredRows.filter(r=>r._tipo==="CORTE" && r._statusGroup==="FINALIZADO").length;
+    const corteOcc = filteredRows.filter(r=>r._tipo==="CORTE" && r._statusGroup==="FINALIZADO C/ OCORRÊNCIA").length;
+
+    const religDen = religFin+religOcc, corteDen = corteFin+corteOcc;
+    const religPct = religDen ? Math.round((religOcc/religDen)*100) : 0;
+    const cortePct = corteDen ? Math.round((corteOcc/corteDen)*100) : 0;
+
+    // KPIs (com animação nos números principais)
+    animateCount($("kpiReligFin"), religFin);
+    animateCount($("kpiReligOcc"), religOcc);
+    $("kpiReligPct").textContent = religPct+"%";
+    animateCount($("kpiCorteFin"), corteFin);
+    animateCount($("kpiCorteOcc"), corteOcc);
+    $("kpiCortePct").textContent = cortePct+"%";
+
+    $("badgeR1").textContent = religFin;
+    $("badgeR2").textContent = religOcc;
+    $("badgeR3").textContent = religPct+"%";
+    $("badgeC1").textContent = corteFin;
+    $("badgeC2").textContent = corteOcc;
+    $("badgeC3").textContent = cortePct+"%";
+
+    // Resumo geral
+    const totalKPI = religFin+religOcc+corteFin+corteOcc;
+    $("summaryText").innerHTML = `<b>Registros filtrados:</b> ${filteredRows.length} • <b>Entram nos gráficos/ranking:</b> ${totalKPI}`;
+
+    // Metas por tipo (somente FINALIZADOS)
+    // CORTE
+    const metaC = parseInt($("metaCorteInput").value,10);
+    const metaCValid = !isNaN(metaC) && metaC > 0;
+    const hitC = corteFin;
+    const pctC = metaCValid ? Math.min(100, Math.round((hitC/metaC)*100)) : 0;
+    const missQtyC = metaCValid ? Math.max(0, metaC - hitC) : 0;
+    const missPctC = metaCValid ? Math.max(0, 100 - pctC) : 0;
+    animateCount($("kpiMetaCorteHit"), hitC);
+    $("kpiMetaCorteTotal").textContent = metaCValid ? metaC : 0;
+    $("badgeMetaCortePct").textContent = pctC + "%";
+    $("kpiMetaCorteMissingQty").textContent = `Faltam ${missQtyC}`;
+    $("kpiMetaCorteMissingPct").textContent = `${missPctC}%`;
+    $("progressBarCorte").style.width = pctC + "%";
+
+    // RELIGAÇÃO
+    const metaR = parseInt($("metaReligInput").value,10);
+    const metaRValid = !isNaN(metaR) && metaR > 0;
+    const hitR = religFin;
+    const pctR = metaRValid ? Math.min(100, Math.round((hitR/metaR)*100)) : 0;
+    const missQtyR = metaRValid ? Math.max(0, metaR - hitR) : 0;
+    const missPctR = metaRValid ? Math.max(0, 100 - pctR) : 0;
+    animateCount($("kpiMetaReligHit"), hitR);
+    $("kpiMetaReligTotal").textContent = metaRValid ? metaR : 0;
+    $("badgeMetaReligPct").textContent = pctR + "%";
+    $("kpiMetaReligMissingQty").textContent = `Faltam ${missQtyR}`;
+    $("kpiMetaReligMissingPct").textContent = `${missPctR}%`;
+    $("progressBarRelig").style.width = pctR + "%";
+
+    renderCharts({religFin,religOcc,corteFin,corteOcc});
+    renderAgg();
+    renderDailyByTeam(); // só FINALIZADOS
+    renderTable();
+  }
+
+  // ====== Charts (com estilo PRO)
+  function renderCharts(v){
+    if(typeof Chart === "undefined") return;
+
+    const gridColor = "rgba(255,255,255,.08)";
+    const axisColor = "#9fb2d9";
+    const neon1 = "rgba(0,245,160,.75)";
+    const neon1b= "rgba(0,245,160,1)";
+    const neon2 = "rgba(0,210,255,.75)";
+    const neon2b= "rgba(0,210,255,1)";
+    const warn  = "rgba(255,176,32,.75)";
+    const warnb = "rgba(255,176,32,1)";
+
+    // Barras empilhadas
+    if(chartBar) chartBar.destroy();
+    chartBar = new Chart($("chartBar"),{
+      type:"bar",
+      data:{
+        labels:["RELIGAÇÃO","CORTE"],
+        datasets:[
+          {label:"Finalizados", data:[v.religFin, v.corteFin], backgroundColor:neon1, borderColor:neon1b, borderWidth:1, borderRadius:8 },
+          {label:"Finalizados c/ Ocorrência", data:[v.religOcc, v.corteOcc], backgroundColor:warn, borderColor:warnb, borderWidth:1, borderRadius:8 }
+        ]
+      },
+      options:{
+        responsive:true,
+        animation:{ duration:700, easing:'easeOutQuart' },
+        plugins:{ legend:{ labels:{ color:axisColor } } },
+        scales:{
+          x:{ stacked:true, ticks:{ color:axisColor }, grid:{ color:gridColor } },
+          y:{ stacked:true, beginAtZero:true, ticks:{ color:axisColor, precision:0 }, grid:{ color:gridColor } }
+        }
+      }
+    });
+
+    // Donut
+    if(chartDonut) chartDonut.destroy();
+    chartDonut = new Chart($("chartDonut"),{
+      type:"doughnut",
+      data:{
+        labels:["Finalizados","Finalizados c/ Ocorrência"],
+        datasets:[{
+          data:[v.religFin+v.corteFin, v.religOcc+v.corteOcc],
+          backgroundColor:[neon2, warn],
+          borderColor:[neon2b, warnb],
+          borderWidth:1,
+          hoverOffset:6
+        }]
+      },
+      options:{
+        cutout:"62%",
+        animation:{ duration:800, easing:'easeOutCubic' },
+        plugins:{ legend:{ labels:{ color:axisColor } } }
+      }
+    });
+
+    // Linha — APENAS FINALIZADOS por dia, separado por tipo
+    const mapReligFin = new Map(), mapCorteFin = new Map();
+    filteredRows.forEach(r=>{
+      if(r._statusGroup!=="FINALIZADO") return;
+      if(!r._dataDate || isNaN(r._dataDate)) return;
+      const k = yyyyMmDd(r._dataDate);
+      if(r._tipo==="RELIGAÇÃO") mapReligFin.set(k,(mapReligFin.get(k)||0)+1);
+      if(r._tipo==="CORTE") mapCorteFin.set(k,(mapCorteFin.get(k)||0)+1);
+    });
+
+    const keys = Array.from(new Set([...mapReligFin.keys(), ...mapCorteFin.keys()])).sort();
+    const labels = keys.map(k => fmtDate(new Date(k+"T00:00:00")));
+    const sRelig = keys.map(k => mapReligFin.get(k)||0);
+    const sCorte = keys.map(k => mapCorteFin.get(k)||0);
+
+    if(chartLine) chartLine.destroy();
+    chartLine = new Chart($("chartLine"),{
+      type:"line",
+      data:{ labels, datasets:[
+        {label:"Religação (Finalizados/dia)", data:sRelig, borderColor:neon2b, backgroundColor:"rgba(0,210,255,.15)", tension:.3, fill:true, pointRadius:2, pointBackgroundColor:neon2b },
+        {label:"Corte (Finalizados/dia)", data:sCorte, borderColor:neon1b, backgroundColor:"rgba(0,245,160,.15)", tension:.3, fill:true, pointRadius:2, pointBackgroundColor:neon1b }
+      ]},
+      options:{
+        responsive:true,
+        animation:{ duration:800, easing:'easeOutQuart' },
+        plugins:{ legend:{ labels:{ color:axisColor } } },
+        scales:{
+          x:{ ticks:{ color:axisColor }, grid:{ color:gridColor } },
+          y:{ beginAtZero:true, ticks:{ color:axisColor, precision:0 }, grid:{ color:gridColor } }
+        }
+      }
+    });
+  }
+
+  // ====== Ranking
+  function renderAgg(){
+    const agg = new Map();
+    filteredRows.forEach(r=>{
+      if(!(r._statusGroup==="FINALIZADO" || r._statusGroup==="FINALIZADO C/ OCORRÊNCIA")) return;
+      const key = (r.Recurso ?? "").toString().trim() || "(Sem Recurso)";
+      if(!agg.has(key)) agg.set(key,{recurso:key, rf:0, ro:0, cf:0, co:0});
+      const a = agg.get(key);
+      if(r._tipo==="RELIGAÇÃO" && r._statusGroup==="FINALIZADO") a.rf++;
+      if(r._tipo==="RELIGAÇÃO" && r._statusGroup==="FINALIZADO C/ OCORRÊNCIA") a.ro++;
+      if(r._tipo==="CORTE" && r._statusGroup==="FINALIZADO") a.cf++;
+      if(r._tipo==="CORTE" && r._statusGroup==="FINALIZADO C/ OCORRÊNCIA") a.co++;
+    });
+    const arr = Array.from(agg.values()).map(x=>({...x,total:x.rf+x.ro+x.cf+x.co})).sort((a,b)=>b.total-a.total);
+    $("tbodyAgg").innerHTML = arr.length ? arr.map(x=>`
+      <tr>
+        <td>${escapeHtml(x.recurso)}</td>
+        <td>${x.rf}</td>
+        <td>${x.ro}</td>
+        <td>${x.cf}</td>
+        <td>${x.co}</td>
+        <td><b>${x.total}</b></td>
+      </tr>
+    `).join("") : `<tr><td colspan="6" style="color:#9fb2d9">Sem dados no filtro.</td></tr>`;
+  }
+
+  // ====== Tabela base
+  function statusPill(g){
+    if(g==="FINALIZADO") return `<span class="status-pill"><span class="dot good"></span>FINALIZADO</span>`;
+    if(g==="FINALIZADO C/ OCORRÊNCIA") return `<span class="status-pill"><span class="dot warn"></span>FINALIZADO C/ OCORRÊNCIA</span>`;
+    return `<span class="status-pill"><span class="dot"></span>OUTROS</span>`;
+  }
+  function renderTable(){
+    const view = filteredRows.slice(0,300);
+    $("tbody").innerHTML = view.length ? view.map(r=>`
+      <tr>
+        <td>${escapeHtml(r.Recurso)}</td>
+        <td>${escapeHtml(r["Cód. Protocolo Origem"])}</td>
+        <td>${escapeHtml(r["Número da Conta"])}</td>
+        <td>${escapeHtml(r.Matrícula)}</td>
+        <td>${escapeHtml(r.Setor)}</td>
+        <td>${escapeHtml(r["Número da Quadra"])}</td>
+        <td>${escapeHtml(r["Código/Descrição"])}</td>
+        <td>${escapeHtml(fmtDate(r._dataDate) || r.Data)}</td>
+        <td>${escapeHtml(r["Status da Atividade"])}</td>
+        <td>${escapeHtml(r._tipo)}</td>
+        <td>${statusPill(r._statusGroup)}</td>
+      </tr>
+    `).join("") : `<tr><td colspan="11" style="color:#9fb2d9">Importe um Excel para ver dados.</td></tr>`;
+  }
+
+  // ====== Produtividade diária (só FINALIZADOS)
+  function renderDailyByTeam(){
+    const elig = filteredRows.filter(r =>
+      r._statusGroup==="FINALIZADO" &&
+      r._dataDate && !isNaN(r._dataDate)
+    );
+
+    const dateKeys = Array.from(new Set(elig.map(r => yyyyMmDd(r._dataDate)))).sort();
+    let usedDates = dateKeys;
+    let sliced = false;
+    if(dateKeys.length > 14){
+      usedDates = dateKeys.slice(-14);
+      sliced = true;
+    }
+    lastDailyDates = usedDates.slice();
+
+    const headHtml = `<tr><th>Recurso</th>` + usedDates.map(k => `<th>${fmtDate(new Date(k+"T00:00:00"))}</th>`).join("") + `<th>Total</th></tr>`;
+    $("theadDaily").innerHTML = headHtml;
+
+    const byTeam = new Map();
+    elig.forEach(r => {
+      const team = (r.Recurso ?? "").toString().trim() || "(Sem Recurso)";
+      const k = yyyyMmDd(r._dataDate);
+      if(!usedDates.includes(k)) return;
+      if(!byTeam.has(team)) byTeam.set(team, {recurso:team, per:{}, total:0});
+      const obj = byTeam.get(team);
+      obj.per[k] = (obj.per[k]||0) + 1;
+      obj.total++;
+    });
+
+    const rows = Array.from(byTeam.values()).sort((a,b)=>b.total - a.total);
+    $("tbodyDaily").innerHTML = rows.length ? rows.map(row => {
+      const tds = usedDates.map(k => `<td>${row.per[k]||0}</td>`).join("");
+      return `<tr><td>${escapeHtml(row.recurso)}</td>${tds}<td><b>${row.total}</b></td></tr>`;
+    }).join("") : `<tr><td colspan="${usedDates.length+2}" style="color:#9fb2d9">Sem dados no filtro.</td></tr>`;
+
+    $("dailyHint").textContent = sliced ? "Exibindo os últimos 14 dias do período filtrado." : "Exibindo todos os dias do período filtrado.";
+  }
+
+  // ====== Exports
+  $("btnExportCsv").addEventListener("click", ()=>{
+    if(!filteredRows.length){ alert("Não há dados filtrados para exportar."); return; }
+    const headers = ["Recurso","Cód. Protocolo Origem","Número da Conta","Matrícula","Setor","Número da Quadra","Código/Descrição","Data","Status da Atividade","Tipo","Status (Grupo)"];
+    const lines = [headers.join(";")];
+    filteredRows.forEach(r=>{
+      const row = [
+        r.Recurso,
+        r["Cód. Protocolo Origem"],
+        r["Número da Conta"],
+        r.Matrícula,
+        r.Setor,
+        r["Número da Quadra"],
+        r["Código/Descrição"],
+        fmtDate(r._dataDate) || r.Data,
+        r["Status da Atividade"],
+        r._tipo,
+        r._statusGroup
+      ].map(v => `"${(v ?? "").toString().replace(/"/g,'""')}"`);
+      lines.push(row.join(";"));
+    });
+    const blob = new Blob(["\ufeff"+lines.join("\n")], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="produtividade_filtrada.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  $("btnExportDailyCsv").addEventListener("click", ()=>{
+    const elig = filteredRows.filter(r =>
+      r._statusGroup==="FINALIZADO" &&
+      r._dataDate && !isNaN(r._dataDate)
+    );
+    if(!elig.length){ alert("Não há produtividade diária para exportar."); return; }
+
+    let usedDates = lastDailyDates.length ? lastDailyDates : Array.from(new Set(elig.map(r => yyyyMmDd(r._dataDate)))).sort();
+    const byTeam = new Map();
+    elig.forEach(r=>{
+      const team = (r.Recurso ?? "").toString().trim() || "(Sem Recurso)";
+      const k = yyyyMmDd(r._dataDate);
+      if(!usedDates.includes(k)) return;
+      if(!byTeam.has(team)) byTeam.set(team, {recurso:team, per:{}, total:0});
+      const obj = byTeam.get(team);
+      obj.per[k] = (obj.per[k]||0) + 1;
+      obj.total++;
+    });
+    const rows = Array.from(byTeam.values()).sort((a,b)=>b.total - a.total);
+
+    const headers = ["Recurso", ... usedDates.map(k => fmtDate(new Date(k+"T00:00:00"))), "Total"];
+    const lines = [headers.join(";")];
+    rows.forEach(row=>{
+      const vals = usedDates.map(k => row.per?.[k] || 0);
+      lines.push([`"${row.recurso.replace(/"/g,'""')}"`, ... vals, row.total].join(";"));
+    });
+
+    const blob = new Blob(["\ufeff"+lines.join("\n")], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="produtividade_diaria_finalizados_por_equipe.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+</script>
+
+<!-- === ASSINATURA CENTRAL INCLINADA — JURANDIR.JUNIOR (integrada) === -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  // evita duplicar caso o script seja inserido mais de uma vez
+  if (document.getElementById("wm-jurandir")) return;
+
+  const assinatura = document.createElement("div");
+  assinatura.id = "wm-jurandir";
+  assinatura.innerText = "JURANDIR.JUNIOR";
+
+  assinatura.style.position = "fixed";
+  assinatura.style.top = "50%";
+  assinatura.style.left = "50%";
+  assinatura.style.transform = "translate(-50%, -50%) rotate(-25deg)";
+  assinatura.style.opacity = "0.08";
+  assinatura.style.fontSize = "120px";
+  assinatura.style.fontWeight = "900";
+  assinatura.style.letterSpacing = "2px";
+  assinatura.style.color = "#ffffff";
+  assinatura.style.pointerEvents = "none";
+  assinatura.style.userSelect = "none";
+  assinatura.style.zIndex = "9999";
+  assinatura.style.textShadow = "0 0 12px #000";
+  assinatura.style.whiteSpace = "nowrap";
+
+  document.body.appendChild(assinatura);
+
+  // um toque extra: fica um pouco mais visível ao imprimir
+  const stylePrint = document.createElement("style");
+  stylePrint.textContent = "@media print { #wm-jurandir { opacity: 0.15 !important; } }";
+  document.head.appendChild(stylePrint);
+});
+</script>
+<!-- === /ASSINATURA === -->
+
+<!--
+MODO OFFLINE (SE CDN BLOQUEADO):
+1) Baixe e salve na mesma pasta deste HTML:
+   - xlsx.full.min.js  (https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js)
+   - chart.umd.min.js  (https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js)
+2) Troque no <head> para:
+   <script src="./xlsx.full.min.js"></script>
+   <script src="./chart.umd.min.js"></script>
+-->
+
+</body>
+</html>
